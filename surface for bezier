@@ -1,0 +1,196 @@
+//Bezier surface 4x4 control pts
+ 
+#include <GL/glut.h>
+#include <bevgrafmath2017.h>
+#include <math.h>
+#include <vector>
+
+GLsizei winWidth = 800, winHeight = 600;
+
+vec3 points[4][4] = {
+	{{1.0, 1.5, 1.5}, {1.0, 2.5, 3.5}, {1.0, 4.5, 3.5}, {1.0, 6.5, 1.5} },
+	{{4.0, 5.5, 1.5}, {4.0, 3.5, 3.5}, {4.0, 2.5, 3.5}, {4.0, 3.5, 1.5} },
+	{{6.0, 1.5, 1.5}, {6.0, 2.5, 3.5}, {6.0, 4.5, 3.5}, {6.0, 6.5, 1.5} },
+	{{8.0, 5.5, 1.5}, {8.0, 3.5, 3.5}, {8.0, 2.5, 3.5}, {8.0, 3.5, 1.5} }
+};
+vec3 helperCurve[4][4] = {};
+
+mat4 w2v, projection;
+float a = pi() / 10;
+float b = pi() / 20;
+float g = 0;
+
+int counter = 0;
+
+void initMatrices() {
+
+	projection = perspective(10.0f);
+
+	vec2 windowSize = { 5, 5 };
+	vec2 windowPosition = { -8, -8 };
+	vec2 viewportSize = { 150, 150 };
+	vec2 viewportPosition = { 50, 50 };
+	w2v = windowToViewport3(windowPosition, windowSize, viewportPosition, viewportSize);
+}
+
+void transform() {
+	mat4 rotation = rotateX(a) * rotateY(b)* rotateZ(g);
+	mat4 M = w2v * projection * rotation;
+
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			vec4 pointH = ihToH(points[i][j]);
+			vec4 transformedPoint = M * pointH;
+
+			if (transformedPoint.w != 0) {
+				vec3 resultIh = hToIh(transformedPoint);
+				if (resultIh.z == 0) {
+					helperCurve[i][j] = vec2(resultIh.x, resultIh.y);
+				}
+			}
+		}
+	}
+}
+void init() {
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glMatrixMode(GL_PROJECTION);
+	gluOrtho2D(0.0, winWidth, 0.0, winHeight);
+	glShadeModel(GL_FLAT);
+	glEnable(GL_POINT_SMOOTH);
+	glPointSize(5.0);
+	glLineWidth(2.0);
+
+	initMatrices();
+	transform();
+}
+double binomialCoefficient(int w, int t) {
+	if (t > w - t)
+		t = w - t;
+
+	double c = 1.0;
+
+	for (int i = 0; i < t; i++) {
+		c = c * (w - i);
+		c = c / (i + 1);
+	}
+	return c;
+}
+void initCurve() {
+
+	glBegin(GL_POINTS);//control points 
+	glColor3f(1, 1, 0);
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			glVertex2f(helperCurve[i][j].x, helperCurve[i][j].y);
+		}
+	}
+	glEnd();
+
+	for (int i = 0; i < 4; i++) {
+		glBegin(GL_LINE_STRIP);
+		for (int j = 0; j < 4; j++) {
+			glVertex2f(helperCurve[i][j].x, helperCurve[i][j].y);
+		}
+		glEnd();
+	}
+	for (int i = 0; i < 4; i++) {
+		glBegin(GL_LINE_STRIP);
+		for (int j = 0; j < 4; j++) {
+			glVertex2f(helperCurve[j][i].x, helperCurve[j][i].y);
+		}
+		glEnd();
+	}
+	for (float u = 0; u < 1.0; u += 0.1) {
+		glBegin(GL_LINE_STRIP);
+		glColor3f(1, 0, 0);
+		for (float v = 0.0; v < 1.0; v += 0.01) {
+			vec3 curvePoint = { 0.25,0.25,-0.5 };
+
+			for (int i = 0; i < 4; i++) {
+				for (int j = 0; j < 4; j++) {
+					curvePoint.x += points[i][j].x *
+						(binomialCoefficient(3, i) * pow(1 - u, 3 - i) * pow(u, i)) *
+						(binomialCoefficient(3, j) * pow(1 - v, 3 - j) * pow(v, j));
+					curvePoint.y += points[i][j].y *
+						(binomialCoefficient(3, i) * pow(1 - u, 3 - i) * pow(u, i)) *
+						(binomialCoefficient(3, j) * pow(1 - v, 3 - j) * pow(v, j));
+					curvePoint.z += points[i][j].z *
+						(binomialCoefficient(3, i) * pow(1 - u, 3 - i) * pow(u, i)) *
+						(binomialCoefficient(3, j) * pow(1 - v, 3 - j) * pow(v, j));
+				}
+			}
+			mat4 rotation = rotateX(a) * rotateY(b)* rotateZ(g);
+			mat4 M = w2v * projection * rotation;
+			vec4 pointH = ihToH(curvePoint);
+			vec4 transformedPoint = M * pointH;
+
+			if (transformedPoint.w != 0) {
+				vec3 resultIh = hToIh(transformedPoint);
+				if (resultIh.z == 0) {
+					glVertex2f(resultIh.x, resultIh.y);
+				}
+			}
+		}
+		glEnd();
+	}
+
+	for (float v = 0.0; v < 1.0; v += 0.1) {
+		glBegin(GL_LINE_STRIP);
+		glColor3f(1, 0, 0);//the surface color 
+		for (float u = 0; u < 1.0; u += 0.01) {
+			vec3 curvePoint = { 0.25,0.25,-0.5 };
+
+			for (int i = 0; i < 4; i++) {
+				for (int j = 0; j < 4; j++) {
+					curvePoint.x += points[i][j].x *
+						(binomialCoefficient(3, i) * pow(1 - u, 3 - i) * pow(u, i)) *
+						(binomialCoefficient(3, j) * pow(1 - v, 3 - j) * pow(v, j));
+					curvePoint.y += points[i][j].y *
+						(binomialCoefficient(3, i) * pow(1 - u, 3 - i) * pow(u, i)) *
+						(binomialCoefficient(3, j) * pow(1 - v, 3 - j) * pow(v, j));
+					curvePoint.z += points[i][j].z *
+						(binomialCoefficient(3, i) * pow(1 - u, 3 - i) * pow(u, i)) *
+						(binomialCoefficient(3, j) * pow(1 - v, 3 - j) * pow(v, j));
+				}
+			}
+
+			mat4 rotation = rotateX(a) * rotateY(b)* rotateZ(g);
+			mat4 M = w2v * projection * rotation;
+			vec4 pointH = ihToH(curvePoint);
+			vec4 transformedPoint = M * pointH;
+
+			if (transformedPoint.w != 0) {
+				vec3 resultIh = hToIh(transformedPoint);
+				if (resultIh.z == 0) {
+					glVertex2f(resultIh.x, resultIh.y);
+				}
+			}
+		}
+		glEnd();
+	}
+}
+
+void display() {
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	glColor3f(1, 1, 1);
+
+	initCurve();
+
+	glutSwapBuffers();
+}
+
+int main(int argc, char** argv) {
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitWindowSize(winWidth, winHeight);
+	glutInitWindowPosition(100, 100);
+	glutCreateWindow("Geometric Modeling");
+
+	init();
+	glutDisplayFunc(display);
+	//glutKeyboardFunc(keyPressed);
+
+	glutMainLoop();
+	return 0;
+}
