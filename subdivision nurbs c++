@@ -1,0 +1,123 @@
+//Subdivision 
+
+#include <GL/glut.h>
+#include <vector>
+#include <bevgrafmath2017.h>
+#include <math.h>
+
+using namespace std;
+
+GLsizei winWidth = 800, winHeight = 600;
+float m[4] = { 1.0 / 6, 2.0 / 6, 2.0 / 6, 1.0 / 6 };
+int counter = 0;
+vector<vec2> points;
+
+GLint dragged = -1;
+
+void init() {
+	glClearColor(0.0, 0.0, 0.0, 0.0);
+	glMatrixMode(GL_PROJECTION);
+	gluOrtho2D(0.0, winWidth, 0.0, winHeight);
+	glShadeModel(GL_FLAT);
+	glEnable(GL_POINT_SMOOTH);
+	glPointSize(5.0);
+	glLineWidth(1.0);
+}
+double binomialCoefficient(int t, int w) {
+	if (t > w - t)
+		t = w - t;
+
+	double d = 1.0;
+
+	for (int k = 0; k < t; k++) {
+		d = d * (w - k);
+		d = d / (k + 1);
+	}
+	return d;
+}
+void drawBezierWithBernstein() {
+
+	glBegin(GL_POINTS);
+	for (int i = 0; i < points.size(); i++) {
+		glVertex2f(points[i].x, points[i].y);
+	}
+	glEnd();
+
+	glBegin(GL_LINE_LOOP);
+	for (int i = 0; i < points.size(); i++) {
+		glVertex2f(points[i].x, points[i].y);
+	}
+	glEnd();
+}
+void display() {
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	glColor3f(1.0, 1.0, 1.0);
+
+	drawBezierWithBernstein();
+
+	glutSwapBuffers();
+}
+GLint getActivePoint1(vector<vec2> p, GLint sens, GLint x, GLint y) {
+	GLint i, s = sens * sens;
+	vec2 P = { (float)x, (float)y };
+
+	for (i = 0; i < p.size(); i++)
+		if (dist(p[i], P) < s)
+			return i;
+	return -1;
+}
+void processMouse(GLint button, GLint action, GLint xMouse, GLint yMouse) {
+	GLint i;
+	if (button == GLUT_LEFT_BUTTON && action == GLUT_DOWN) { 
+		vec2 mouse = vec2(xMouse, winHeight - yMouse);
+		points.push_back(mouse);
+		counter++;
+		glutPostRedisplay();
+	}
+	if (counter == points.size() && (i = getActivePoint1(points, 5, xMouse, winHeight - yMouse)) != -1)
+		dragged = i;
+	if (button == GLUT_LEFT_BUTTON && action == GLUT_UP)
+		dragged = -1;
+}
+void processMouseActiveMotion(GLint xMouse, GLint yMouse) {
+	GLint i;
+
+	if (dragged >= 0) {
+		points[dragged].x = xMouse;
+		points[dragged].y = winHeight - yMouse;
+		glutPostRedisplay();
+	}
+}
+void keyPressed(unsigned char key, int x, int y) {
+	if (key == 'a') {
+		vector<vec2> helperVec = points;
+
+		for (int i = 0; i < points.size(); i++) {
+			vec2 p = { 0.0, 0.0 };
+			for (int j = 0; j <= 3; j++) {
+				p += m[j] * points[(i + j) % points.size()];
+			}
+			int index = (2 * i + 2) % helperVec.size();
+			if (index == 0)
+				index = helperVec.size();
+			helperVec.insert(helperVec.begin() + index, p);
+		}
+		points = helperVec;
+	}
+	glutPostRedisplay();
+}
+int main(int argc, char** argv) {
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitWindowSize(winWidth, winHeight);
+	glutInitWindowPosition(100, 100);
+	glutCreateWindow("Geometric Modeling 4");
+	init();
+	glutDisplayFunc(display);
+	glutMouseFunc(processMouse);
+	glutMotionFunc(processMouseActiveMotion);
+	glutKeyboardFunc(keyPressed);
+	glutMainLoop();
+	return 0;
+}
