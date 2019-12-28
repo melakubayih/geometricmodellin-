@@ -1,0 +1,144 @@
+#include <GL/glut.h>
+#include <bevgrafmath2017.h>
+#include <math.h>
+
+GLsizei winWidth = 800, winHeight = 600;
+vec2 points2[6] = {
+	{100, 100},
+	{200, 100},
+	{200, 300},
+	{300, 300},
+	{300, 100},
+    {400,100}
+};
+
+GLint dragged = -1;
+
+void init() {
+	glClearColor(1.0, 1.0, 1.0, 0.0);
+	glMatrixMode(GL_PROJECTION);
+	gluOrtho2D(0.0, winWidth, 0.0, winHeight);
+	glShadeModel(GL_FLAT);
+	glEnable(GL_POINT_SMOOTH);
+	glPointSize(5);
+	glLineWidth(2.0);
+}
+void display() {
+	GLint i;
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	glColor3f(1, 0, 0);
+	glBegin(GL_POINTS);
+	for (int i = 0; i < 6; i++) {
+		glVertex2f(points2[i].x, points2[i].y);
+	}
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+	glColor3f(0, 0, 1);
+	for (int i = 0; i < 6; i++) {
+		glVertex2f(points2[i].x, points2[i].y);
+	}
+	glEnd();
+
+	glBegin(GL_LINE_STRIP);
+	glColor3f(1, 0, 1);
+
+	int n = 5; // we have 6 points, thus n = 5 (number of points - 1)
+
+	int k = 3; // NUmber of control points effecting current segment
+	int knotVec[9] = {}; //n + k + 1 non-uniform; { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 }; -> this is for uniform B-Spline
+	float i_j;
+	//float m_i;
+
+	// Calculation of Knots points -> i_j
+
+	for (int j = 0; j <= n + k; j++) {
+		if (j <= k) {
+			i_j = 0;
+		}
+		else if ((k < j) && (j <= n)) {
+			i_j = j - k + 1;
+		}
+		else if (j > n) {
+			i_j = n - k + 2;
+		}
+		knotVec[j] = i_j;
+	}
+	vec3 helperPoints[6];
+	vec3 helperPoints_2[6];
+	float weight[6] = { 8.0,1.0,5.0,1.0,6.0,1.0 };
+
+
+	glBegin(GL_LINE_STRIP);
+	for (int i = k; i <= n; i++) {
+		for (float t = knotVec[i]; t < knotVec[i + 1]; t += 0.01) {
+
+			for (int i = 0; i < n + 1; i++) {
+				helperPoints[i] = { points2[i].x *weight[i] ,points2[i].y *weight[i],weight[i] };
+				helperPoints_2[i] = { points2[i].x *weight[i] ,points2[i].y *weight[i],weight[i] };
+			}
+			for (int r = 1; r <= k; r++) {
+				for (int j = i - k + r; j <= i; j++) {
+
+					float m_j_k = (t - knotVec[j]) / (knotVec[j + k - (r - 1)] - knotVec[j]);
+
+					helperPoints[j] = (1 - m_j_k) * helperPoints_2[j - 1] + m_j_k * helperPoints_2[j];
+				}
+				for (int l = 0; l < 6; l++) {
+					helperPoints_2[l] = helperPoints[l];
+				}
+			}
+			glVertex2f(helperPoints[i].x/helperPoints[i].z,helperPoints[i].y/helperPoints[i].z);
+		}
+	}
+	glEnd();
+
+	glutSwapBuffers();
+}
+float recursionFunction(float u, float Tj, float Tj_1) {
+
+	if ((Tj <= u) && (u <= Tj_1)) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+GLint getActivePoint1(vec2 p[], GLint size, GLint sens, GLint x, GLint y) {
+	GLint i, s = sens * sens;
+	vec2 mouse = { (float)x, (float)y };
+
+	for (i = 0; i < size; i++)
+		if (dist2(p[i], mouse) < s)
+			return i;
+	return -1;
+}
+void processMouse(GLint button, GLint action, GLint xMouse, GLint yMouse) {
+	GLint i;
+	if (button == GLUT_LEFT_BUTTON && action == GLUT_DOWN)
+		if ((i = getActivePoint1(points2, 12, 20, xMouse, winHeight - yMouse)) != -1)
+			dragged = i;
+	if (button == GLUT_LEFT_BUTTON && action == GLUT_UP)
+		dragged = -1;
+}
+void processMouseActiveMotion(GLint xMouse, GLint yMouse) {
+	GLint i;
+	if (dragged >= 0) {
+		points2[dragged].x = xMouse;
+		points2[dragged].y = winHeight - yMouse;
+		glutPostRedisplay();
+	}
+}
+int main(int argc, char** argv) {
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitWindowSize(winWidth, winHeight);
+	glutInitWindowPosition(100, 100);
+	glutCreateWindow("Geometric Modelling 2");
+	init();
+	glutDisplayFunc(display);
+	glutMouseFunc(processMouse);
+	glutMotionFunc(processMouseActiveMotion);
+	glutMainLoop();
+	return 0;
+}
